@@ -7,6 +7,14 @@ from matplotlib.axes import Axes
 import matplotlib.pyplot as plt
 import geopandas as gpd
 import pandas as pd
+from shapely.geometry import Point, Polygon
+from shapely import affinity
+
+
+def point_to_bbox(pt: Point, width: float, length: float, angle: float) -> Polygon:
+    bbox = affinity.scale(pt.buffer(0.5, cap_style=3), xfact=length, yfact=width)
+    bbox = affinity.rotate(bbox, angle, use_radians=True)
+    return bbox
 
 
 @dataclass
@@ -17,6 +25,7 @@ class Trajectory:
     # metric coordinates
     xs: np.ndarray
     ys: np.ndarray
+    angles: np.ndarray
 
     width: Optional[float] = None
     length: Optional[float] = None
@@ -25,24 +34,22 @@ class Trajectory:
     projection: Literal["EPSG:25832"] = "EPSG:25832"
 
 
-    def plot_on_map(self, ax: Axes):
-
-        gdf = self.to_geopandas()
-        gdf_wgs84 = gdf.to_crs("EPSG:4326")
-        gdf_wgs84.plot(ax=ax)
-
-    
-    def to_geopandas(self):
+    def to_geopandas(self, as_bbox: bool = False) -> gpd.GeoDataFrame:
 
         df = pd.DataFrame({
             "t": self.t,
             "x": self.xs,
             "y": self.ys,
+            "theta": self.angles
         })
 
         gdf = gpd.GeoDataFrame(
             df, geometry=gpd.points_from_xy(df["x"], df["y"]))
-        
+
         gdf = gdf.set_crs(self.projection)
+
+        if as_bbox:
+            gdf.geometry = gdf.apply(lambda row:
+                                     point_to_bbox(row.geometry, self.width, self.length, row["theta"]), axis=1)
 
         return gdf
