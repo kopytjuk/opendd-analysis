@@ -4,6 +4,11 @@ import geopandas as gpd
 from .utils import point_to_bbox
 
 
+def discrete_timestep(df: pd.DataFrame, sampling_frequency: float, column: str = "TIMESTAMP") -> pd.Series:
+    sampling_time_ms = 1000/sampling_frequency
+    return (df[column]*1000 / sampling_time_ms).round().astype(int)
+
+
 def preprocess(df: pd.DataFrame, sampling_frequency: float) -> gpd.GeoDataFrame:
 
     gdf = gpd.GeoDataFrame(
@@ -16,7 +21,6 @@ def preprocess(df: pd.DataFrame, sampling_frequency: float) -> gpd.GeoDataFrame:
                                           as_linestring=True), axis=1)
 
     # generate sampling time 'nearest' interpolation strategy
-    sampling_time_ms = 1000/sampling_frequency
-    gdf["k"] = (gdf["TIMESTAMP"]*1000 / sampling_time_ms).round().astype(int)
+    gdf["k"] = discrete_timestep(gdf, sampling_frequency, "TIMESTAMP")
 
     return gdf                                

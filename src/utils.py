@@ -11,6 +11,9 @@ import pandas as pd
 from shapely.geometry import Point, Polygon, LinearRing
 from shapely import affinity
 
+from .visualize import random_colors
+
+
 def point_to_bbox(pt: Point, width: float, length: float, angle: float,
     as_linestring: bool = False) -> Union[Polygon, LinearRing]:
     bbox = affinity.scale(pt.buffer(0.5, cap_style=3), xfact=length, yfact=width)
@@ -19,6 +22,18 @@ def point_to_bbox(pt: Point, width: float, length: float, angle: float,
         return bbox.exterior
     else:
         return bbox
+
+
+def assign_color(df: pd.DataFrame, column: str, seed: int = 42) -> pd.Series:
+
+    unique_values = df[column].unique()
+    N = len(unique_values)
+
+    color_map = {val: color for val, color in zip(unique_values, random_colors(N, seed))}
+
+    return df[column].map(color_map)
+
+
 
 @dataclass
 class WorldDefinition:
@@ -67,4 +82,4 @@ class WorldDefinition:
         upper_left = T @ np.array([0, 0, 1.0])
         lower_right = T @ np.array([width, height, 1.0])
 
-        return (upper_left[0], lower_right[0], lower_right[1], upper_left[1] )
+        return (upper_left[0], lower_right[0], lower_right[1], upper_left[1])
