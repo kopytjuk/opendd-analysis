@@ -11,4 +11,4 @@ from matplotlib.axes import Axes
 
 def visualize_timestep(ax: Axes, objects: gpd.GeoDataFrame, trafficlanes: gpd.GeoDataFrame):
     trafficlanes.plot(ax=ax, color="k")
-    objects.plot(ax=ax, column="CLASS")
+    objects.plot(ax=ax)
