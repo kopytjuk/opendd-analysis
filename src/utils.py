@@ -1,8 +1,24 @@
 from dataclasses import dataclass
 import pathlib
-from typing import Tuple
+from typing import Literal, Optional, Tuple, Union
 
 import numpy as np
+import matplotlib as mpl
+from matplotlib.axes import Axes
+import matplotlib.pyplot as plt
+import geopandas as gpd
+import pandas as pd
+from shapely.geometry import Point, Polygon, LinearRing
+from shapely import affinity
+
+def point_to_bbox(pt: Point, width: float, length: float, angle: float,
+    as_linestring: bool = False) -> Union[Polygon, LinearRing]:
+    bbox = affinity.scale(pt.buffer(0.5, cap_style=3), xfact=length, yfact=width)
+    bbox = affinity.rotate(bbox, angle, use_radians=True)
+    if as_linestring:
+        return bbox.exterior
+    else:
+        return bbox
 
 @dataclass
 class WorldDefinition:
