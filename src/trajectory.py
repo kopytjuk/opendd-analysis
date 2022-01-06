@@ -10,7 +10,6 @@ import pandas as pd
 from shapely.geometry import Point, Polygon, LinearRing
 from shapely import affinity
 
-
 from .utils import point_to_bbox
 
 @dataclass
