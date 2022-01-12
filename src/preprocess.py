@@ -53,12 +53,15 @@ def _generate_trace(group: pd.DataFrame) -> pd.Series:
     obj_class = first_row["CLASS"]
     w = first_row["WIDTH"]
     l = first_row["LENGTH"]
+    t0 = first_row["TIMESTAMP"]
     
     s = pd.Series({
         "OBJID": objid,
         "CLASS": obj_class,
         "WIDTH": w,
         "LENGTH": l,
+        "START_TIME": t0,
+        "NUM_SAMPLES": len(x_arr),
         "geometry": ls
     })
     return s
