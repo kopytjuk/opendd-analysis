@@ -48,8 +48,8 @@ def _generate_trace(group: pd.DataFrame) -> pd.Series:
     y_arr = group["UTM_Y"]
     ls = LineString([(x, y) for x, y in zip(x_arr, y_arr)])
 
-    acc_tan, acc_lat = group["ACC_TAN"].values, group["ACC_LAT"].values
-    acceleration = np.sqrt(acc_tan**2 + acc_lat**2)
+    velocity = group["V"].values
+    acceleration = group["ACC"].values
 
     first_row = group.iloc[0]
     
@@ -66,8 +66,8 @@ def _generate_trace(group: pd.DataFrame) -> pd.Series:
         "LENGTH": l,
         "START_TIME": t0,
         "NUM_SAMPLES": len(x_arr),
-        "acceleration": acceleration,
-        "acc_tan": acc_tan,
+        "V": velocity,
+        "ACC": acceleration,
         "geometry": ls
     })
     return s
