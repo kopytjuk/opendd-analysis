@@ -64,6 +64,13 @@ def assign_color(s: pd.Series, seed: int = 42) -> pd.Series:
     return s.map(color_map)
 
 
+TimePeriod = Tuple[float, float]  # seconds
+
+def common_time(tp1: TimePeriod, tp2: TimePeriod) -> TimePeriod:
+    t0 = max(tp1[0], tp2[0])
+    t1 = min(tp1[1], tp2[1])
+    return (t0, t1)
+
 
 @dataclass
 class WorldDefinition:
