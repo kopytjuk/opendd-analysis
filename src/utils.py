@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 import pathlib
+from itertools import tee
 from typing import Literal, Optional, Tuple, Union
 
 import numpy as np
@@ -12,6 +13,13 @@ from shapely.geometry import Point, Polygon, LinearRing
 from shapely import affinity
 
 from .visualize import random_colors
+
+
+def pairwise(iterable):
+    "s -> (s0,s1), (s1,s2), (s2, s3), ..."
+    a, b = tee(iterable)
+    next(b, None)
+    return zip(a, b)
 
 
 def point_to_bbox(pt: Point, width: float, length: float, angle: float,
