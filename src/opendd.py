@@ -23,7 +23,7 @@ def extract_samples_from_sqlite(p: pathlib.Path) -> pd.DataFrame:
     df_list = list()
     for t in tqdm(tables, total=len(tables)):
         df_table = pd.read_sql(f'SELECT * FROM {t:s}', con)
-        df_table["table"] = t
+        df_table["MEASUREMENT"] = t
         df_list.append(df_table)
 
     df = pd.concat(df_list)
@@ -31,6 +31,7 @@ def extract_samples_from_sqlite(p: pathlib.Path) -> pd.DataFrame:
     del df["TRAILER_ID"] 
 
     df["CLASS"] = df["CLASS"].astype("category")
+    df["MEASUREMENT"] = df["MEASUREMENT"].astype("category")
 
     # keep only motorized vehicles
     df = df[df["CLASS"].isin(VEHICLE_CLASSES)]

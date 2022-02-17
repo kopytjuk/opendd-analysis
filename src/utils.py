@@ -2,6 +2,7 @@ from dataclasses import dataclass
 import pathlib
 from itertools import tee
 from typing import Literal, Optional, Tuple, Union
+import logging
 
 import numpy as np
 import matplotlib as mpl
@@ -128,3 +129,25 @@ class WorldDefinition:
         lower_right = T @ np.array([width, height, 1.0])
 
         return (upper_left[0], lower_right[0], lower_right[1], upper_left[1])
+
+
+def create_logger(name: str) -> logging.Logger:
+
+    # create logger
+    logger = logging.getLogger(name)
+    logger.setLevel(logging.DEBUG)
+
+    # create console handler and set level to debug
+    ch = logging.StreamHandler()
+    ch.setLevel(logging.DEBUG)
+
+    # create formatter
+    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+
+    # add formatter to ch
+    ch.setFormatter(formatter)
+
+    # add ch to logger
+    logger.addHandler(ch)
+
+    return logger
