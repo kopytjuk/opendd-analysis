@@ -7,8 +7,10 @@ import numpy as np
 
 @dataclass
 class DiscreteReferencePath:
+    """2D Path represented as an ordered list of points.
+    """
     
-    points: np.ndarray  # in cartesian (metric) coordinates, as Nx3 (s, x, y)
+    points: np.ndarray  # in path length s and cartesian (metric) coordinates, as Nx3 (s, x, y)
     spatial_resolution: float  # approximate
     
     def to_frenet(self, pt: Tuple[float, float]) -> Tuple[float, float]:

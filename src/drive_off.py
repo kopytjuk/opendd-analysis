@@ -2,16 +2,21 @@
 """
 
 from dataclasses import dataclass
+import logging
 from typing import Optional, List
 from itertools import tee
 
 import pandas as pd
 import numpy as np
 import geopandas as gpd
+from shapely.geometry import LineString
 
-from .preprocess import VehicleState
+from .opendd import VEHICLE_CLASSES
+from .preprocess import VehicleState, identify_driving_state, transform_df_to_trajectory_gdf
 from .utils import pairwise, create_logger
 from .trajectory import Trajectory
+from .path_assignment import DrivablePath, find_nearest_path
+from .reference_path import DiscreteReferencePath
 
 logger = create_logger(__name__)
 
@@ -152,4 +157,64 @@ def analyze_driveoffs_from_path(path_trajectories: gpd.GeoDataFrame) -> pd.DataF
         
     df_situations = pd.DataFrame(situations)
         
+    return df_situations
+
+
+def _trace_to_frenet(trace: pd.Series, reference_paths: List[DiscreteReferencePath]) -> LineString:
+    path_id = trace["path_id"]
+    ref_path = reference_paths[path_id]
+    return ref_path.linestring_to_frenet(trace["geometry"])
+
+
+def extract_moving_off_situations(roundabout_samples: pd.DataFrame, paths: List[DrivablePath],
+                                  logger: Optional[logging.Logger] = None) -> pd.DataFrame:
+
+    result_list = list()
+
+    for meas, df_measurement in roundabout_samples.groupby("MEASUREMENT"):
+        
+        if len(df_measurement) < 1:
+            continue
+        
+        gdf_traces = transform_df_to_trajectory_gdf(df_measurement)
+
+        # keep only motorized vehicles
+        gdf_traces = gdf_traces[gdf_traces["CLASS"].isin(VEHICLE_CLASSES)]
+
+        # identify driving state
+        gdf_traces["STATE"] = gdf_traces.apply(lambda row: identify_driving_state(row), axis=1)
+        
+        if logger:
+            logger.info(f"Assigning {len(gdf_traces):d} trajectories to path")
+
+        # assign to reference path
+        gdf_traces["path_id"] = gdf_traces.progress_apply(lambda row: find_nearest_path(row["geometry"], paths, N=50), axis=1)
+
+        # create discrete reference paths
+        reference_paths = [DiscreteReferencePath.from_linestring(dp.as_linestring(), resolution=0.05) \
+                           for dp in paths]
+
+        # transform to frenet (frenet_path is a linestring, x=tangential, y=normal)
+        gdf_traces["frenet_path"] = gpd.GeoSeries(gdf_traces.apply(lambda row: _trace_to_frenet(row, reference_paths), axis=1))
+
+        # extract the first frenet coordinate
+        gdf_traces["S"] = gdf_traces["frenet_path"].apply(lambda row: row.xy[0])
+
+        # for each path, find the drive-off situations
+        if logger:
+            logger.info(f"Retrieving drive-off situations.")
+        df_situations = gdf_traces.groupby("path_id").progress_apply(analyze_driveoffs_from_path)
+        df_situations = df_situations.reset_index(drop=True)
+        df_situations["o1_id"] = df_situations["o1_id"].astype(int)
+        df_situations["o2_id"] = df_situations["o2_id"].astype(int)
+        df_situations["o2_state"] = df_situations["o2_state"].astype(int)
+        
+        # record measurement name
+        df_situations["measurement"] = meas
+        
+        result_list.append(df_situations)
+        
+    df_situations = pd.concat(result_list)
+    df_situations["measurement"] = df_situations["measurement"].astype("category")
+    
     return df_situations
