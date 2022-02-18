@@ -65,8 +65,7 @@ def main(roundabout_path: str, output_path: str, debug: bool):
         num_measurements = df_roundabout["MEASUREMENT"].nunique()
         logger.info(f"Found {num_measurements:d} measurements.")
 
-    
-    df_situations = extract_moving_off_situations(df_roundabout, paths)
+    df_situations = extract_moving_off_situations(df_roundabout, paths, logger)
     df_situations["roundabout"] = roundabout_name
 
     situations_output_path = output_path / "situations.csv"
