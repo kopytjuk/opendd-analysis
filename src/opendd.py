@@ -5,13 +5,18 @@ from typing import Optional
 
 import pandas as pd
 from tqdm import tqdm
+from joblib import Memory
 
+
+# cache results
+memory = Memory(".cache", verbose=0)
 
 # vehicle classes from `CLASS` column
 VEHICLE_CLASSES = ["Bus", "Car", "Medium Vehicle", "Heavy Vehicle", "Motorcycle"]
 OTHER_CLASSES = ["Pedestrian", "Trailer"]
 
 
+@memory.cache
 def extract_samples_from_sqlite(p: pathlib.Path, debug: bool = False, 
     logger: Optional[logging.Logger] = None) -> pd.DataFrame:
 

@@ -4,13 +4,15 @@
 from dataclasses import dataclass
 import logging
 from typing import Optional, List
-from itertools import tee
+import multiprocessing as mp
+from joblib import Parallel
 
 import pandas as pd
 import numpy as np
 import geopandas as gpd
 from shapely.geometry import LineString
 
+from .path_extraction import extract_drivable_paths
 from .opendd import VEHICLE_CLASSES
 from .preprocess import VehicleState, identify_driving_state, transform_df_to_trajectory_gdf
 from .utils import pairwise, create_logger
@@ -166,55 +168,94 @@ def _trace_to_frenet(trace: pd.Series, reference_paths: List[DiscreteReferencePa
     return ref_path.linestring_to_frenet(trace["geometry"])
 
 
-def extract_moving_off_situations(roundabout_samples: pd.DataFrame, paths: List[DrivablePath],
-                                  logger: Optional[logging.Logger] = None) -> pd.DataFrame:
+def extract_moving_off_situations(roundabout_samples: pd.DataFrame, trafficlanes: gpd.GeoDataFrame,
+                                num_cores: int = 1, logger: Optional[logging.Logger] = None) -> pd.DataFrame:
+    """Extract moving off situations from raw data table provided in OpenDD dataset.
 
-    result_list = list()
+    Args:
+        roundabout_samples (pd.DataFrame): raw, unprocessed data.
+            Refer to https://l3pilot.eu/data/opendd.
+        trafficlanes (gpd.GeoDataFrame): traffic lanes geometric description (linestrings)
+        logger (Optional[logging.Logger], optional): Logger for the output. Defaults to None.
 
-    for meas, df_measurement in roundabout_samples.groupby("MEASUREMENT"):
-        
-        if len(df_measurement) < 1:
-            continue
-        
-        gdf_traces = transform_df_to_trajectory_gdf(df_measurement)
+    Returns:
+        pd.DataFrame: moving-off situations as records
+    """
 
-        # keep only motorized vehicles
-        gdf_traces = gdf_traces[gdf_traces["CLASS"].isin(VEHICLE_CLASSES)]
+    paths = extract_drivable_paths(trafficlanes)
 
-        # identify driving state
-        gdf_traces["STATE"] = gdf_traces.apply(lambda row: identify_driving_state(row), axis=1)
-        
+    if logger:
+        logger.info(f"{len(paths)} reference paths could be extracted!")    
+
+    if num_cores > 1:
+
         if logger:
-            logger.info(f"Assigning {len(gdf_traces):d} trajectories to path")
+            logger.info(f"{num_cores} CPUs cores will be used.")
 
-        # assign to reference path
-        gdf_traces["path_id"] = gdf_traces.progress_apply(lambda row: find_nearest_path(row["geometry"], paths, N=50), axis=1)
+        with mp.Pool(num_cores) as pool:
 
-        # create discrete reference paths
-        reference_paths = [DiscreteReferencePath.from_linestring(dp.as_linestring(), resolution=0.05) \
-                           for dp in paths]
-
-        # transform to frenet (frenet_path is a linestring, x=tangential, y=normal)
-        gdf_traces["frenet_path"] = gpd.GeoSeries(gdf_traces.apply(lambda row: _trace_to_frenet(row, reference_paths), axis=1))
-
-        # extract the first frenet coordinate
-        gdf_traces["S"] = gdf_traces["frenet_path"].apply(lambda row: row.xy[0])
-
-        # for each path, find the drive-off situations
-        if logger:
-            logger.info(f"Retrieving drive-off situations.")
-        df_situations = gdf_traces.groupby("path_id").progress_apply(analyze_driveoffs_from_path)
-        df_situations = df_situations.reset_index(drop=True)
-        df_situations["o1_id"] = df_situations["o1_id"].astype(int)
-        df_situations["o2_id"] = df_situations["o2_id"].astype(int)
-        df_situations["o2_state"] = df_situations["o2_state"].astype(int)
+            async_result_list = list()
+            for meas, df_measurement in roundabout_samples.groupby("MEASUREMENT"):
+                res = pool.apply_async(_extract_moving_off_situations_single_measurement, \
+                    args=[df_measurement, paths, meas, logger])
+                async_result_list.append(res)
+            
+            result_list = [res.get(timeout=None) for res in async_result_list]
         
-        # record measurement name
-        df_situations["measurement"] = meas
-        
-        result_list.append(df_situations)
-        
+    else:
+        # old implementation
+        result_list = list()
+        for meas, df_measurement in roundabout_samples.groupby("MEASUREMENT"):
+            df_situations = _extract_moving_off_situations_single_measurement(df_measurement, paths, meas, logger)
+            result_list.append(df_situations)
+            
     df_situations = pd.concat(result_list)
     df_situations["measurement"] = df_situations["measurement"].astype("category")
     
+    return df_situations
+
+
+def _extract_moving_off_situations_single_measurement(df_measurement, paths: List[DrivablePath], 
+    measurement_name: str, logger = None):
+
+    if len(df_measurement) < 1:
+        return pd.DataFrame()
+    
+    gdf_traces = transform_df_to_trajectory_gdf(df_measurement)
+
+        # keep only motorized vehicles
+    gdf_traces = gdf_traces[gdf_traces["CLASS"].isin(VEHICLE_CLASSES)]
+
+        # identify driving state
+    gdf_traces["STATE"] = gdf_traces.apply(lambda row: identify_driving_state(row), axis=1)
+        
+    if logger:
+        logger.info(f"{measurement_name}: assigning {len(gdf_traces):d} trajectories to path")
+
+        # assign to reference path
+    gdf_traces["path_id"] = gdf_traces.apply(lambda row: find_nearest_path(row["geometry"], paths, N=25), axis=1)
+
+        # create discrete reference paths
+    reference_paths = [DiscreteReferencePath.from_linestring(dp.as_linestring(), resolution=0.05) \
+                           for dp in paths]
+
+        # transform to frenet (frenet_path is a linestring, x=tangential, y=normal)
+    gdf_traces["frenet_path"] = gpd.GeoSeries(gdf_traces.apply(lambda row: _trace_to_frenet(row, reference_paths), axis=1))
+
+        # extract the first frenet coordinate
+    gdf_traces["S"] = gdf_traces["frenet_path"].apply(lambda row: row.xy[0])
+
+        # for each path, find the drive-off situations
+    if logger:
+        logger.info(f"{measurement_name}: Retrieving drive-off situations.")
+    df_situations = gdf_traces.groupby("path_id").apply(analyze_driveoffs_from_path)
+    df_situations = df_situations.reset_index(drop=True)
+    df_situations["o1_id"] = df_situations["o1_id"].astype(int)
+    df_situations["o2_id"] = df_situations["o2_id"].astype(int)
+    df_situations["o2_state"] = df_situations["o2_state"].astype(int)
+        
+        # record measurement name
+    df_situations["measurement"] = measurement_name
+
+    print(f"'{measurement_name}' done!")
     return df_situations

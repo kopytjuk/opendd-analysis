@@ -119,3 +119,8 @@ def driving_path_overview_plot(trafficlanes: gpd.GeoDataFrame,
         axi.set_axis_off()
 
     return fig
+
+def extract_drivable_paths(trafficlanes: gpd.GeoDataFrame) -> List[DrivablePath]:
+    G = traffic_lanes_to_graph(trafficlanes)
+    paths = extract_paths_from_graph(G)
+    return paths
