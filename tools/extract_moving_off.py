@@ -62,7 +62,7 @@ def main(roundabout_path: str, output_path: str, debug: bool):
         num_objects = df_roundabout["OBJID"].nunique()
         logger.info(f"Found {num_measurements:d} measurements with {num_objects:d} objects in total.")
 
-    df_situations = extract_moving_off_situations(df_roundabout, trafficlanes, num_cores=4, logger=logger)
+    df_situations = extract_moving_off_situations(df_roundabout, trafficlanes, num_cores=8, logger=logger)
     df_situations["roundabout"] = roundabout_name
 
     if logger:

@@ -117,7 +117,11 @@ def find_drive_offs(traj1: Trajectory, traj2: Trajectory) -> List[DriveOffSituat
         distance = o1_position_lon - o2_position_lon 
         
         if o2_driving_state == VehicleState.STANDING:
-            time_drive_off_after_first = o2_drive_off_times[o2_drive_off_times >= t_drive_off][0]
+            try:
+                time_drive_off_after_first = o2_drive_off_times[o2_drive_off_times >= t_drive_off][0]
+            except IndexError:
+                # probably the second vehicle never moves
+                continue
             
             time_delta = time_drive_off_after_first - t_drive_off
             
@@ -248,6 +252,7 @@ def _extract_moving_off_situations_single_measurement(df_measurement, paths: Lis
         # for each path, find the drive-off situations
     if logger:
         logger.info(f"{measurement_name}: Retrieving drive-off situations.")
+    
     df_situations = gdf_traces.groupby("path_id").apply(analyze_driveoffs_from_path)
     df_situations = df_situations.reset_index(drop=True)
     df_situations["o1_id"] = df_situations["o1_id"].astype(int)
