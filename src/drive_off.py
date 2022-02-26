@@ -85,6 +85,10 @@ def find_drive_offs(traj1: Trajectory, traj2: Trajectory) -> List[DriveOffSituat
     
     o1_veh_states = traj1.get("STATE")
     o2_veh_states = traj2.get("STATE")
+
+    # vehicle lengths
+    o1_length = traj1.get("LENGTH").iloc[0]
+    o2_length = traj2.get("LENGTH").iloc[0]
     
     # get velocity
     o2_velocities = traj2.get("V")
@@ -114,7 +118,8 @@ def find_drive_offs(traj1: Trajectory, traj2: Trajectory) -> List[DriveOffSituat
         o2_position_lon = o2_state["S"]
         o2_velocity = o2_state["V"]
         
-        distance = o1_position_lon - o2_position_lon 
+        # consder the vehicle length
+        distance = (o1_position_lon - o1_length) - (o2_position_lon + o2_length)
         
         if o2_driving_state == VehicleState.STANDING:
             try:
@@ -155,13 +160,14 @@ def analyze_driveoffs_from_path(path_trajectories: gpd.GeoDataFrame) -> pd.DataF
         o1_row = path_trajectories.iloc[o1]
         o2_row = path_trajectories.iloc[o2]
         
-        cols = ["S", "V", "ACC", "STATE"]
+        cols = ["S", "V", "ACC", "STATE", "LENGTH"]
         traj1, traj2 = Trajectory.from_trace(o1_row, cols), Trajectory.from_trace(o2_row, cols)
         
         drive_off_situations = find_drive_offs(traj1, traj2)
         situations += drive_off_situations
         
     df_situations = pd.DataFrame(situations)
+    df_situations["path_id"] = path_trajectories["path_id"].iloc[0]
         
     return df_situations
 
@@ -219,7 +225,7 @@ def extract_moving_off_situations(roundabout_samples: pd.DataFrame, trafficlanes
     return df_situations
 
 
-def _extract_moving_off_situations_single_measurement(df_measurement, paths: List[DrivablePath], 
+def _extract_moving_off_situations_single_measurement(df_measurement: pd.DataFrame, paths: List[DrivablePath], 
     measurement_name: str, logger = None):
 
     if len(df_measurement) < 1:
@@ -255,6 +261,10 @@ def _extract_moving_off_situations_single_measurement(df_measurement, paths: Lis
     
     df_situations = gdf_traces.groupby("path_id").apply(analyze_driveoffs_from_path)
     df_situations = df_situations.reset_index(drop=True)
+
+    if len(df_situations) < 1:
+        return pd.DataFrame()
+
     df_situations["o1_id"] = df_situations["o1_id"].astype(int)
     df_situations["o2_id"] = df_situations["o2_id"].astype(int)
     df_situations["o2_state"] = df_situations["o2_state"].astype(int)
