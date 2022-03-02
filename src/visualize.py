@@ -31,6 +31,9 @@ class ObjectVisualization:
         x, y = self.geometry.xy
         ax.plot(x, y, color=self.color)
 
+        P = self.geometry.centroid
+        ax.text(P.x, P.y, f"{self.id}")
+
 
 def visualize_objects(ax: Axes, objects: List[ObjectVisualization], trafficlanes: gpd.GeoDataFrame):
     trafficlanes.plot(ax=ax, color="k")

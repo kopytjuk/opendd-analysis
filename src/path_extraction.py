@@ -98,7 +98,7 @@ def extract_paths_from_graph(G: DiGraph) -> List[DrivablePath]:
 
 
 def driving_path_overview_plot(trafficlanes: gpd.GeoDataFrame,
-    paths: List[DrivablePath]) -> mpl.figure.Figure:
+    paths: List[DrivablePath], print_length: bool = False) -> mpl.figure.Figure:
 
     num_paths = len(paths)
     ncols = 5
@@ -111,7 +111,8 @@ def driving_path_overview_plot(trafficlanes: gpd.GeoDataFrame,
         axi = axs[i]
         trafficlanes.plot(ax=axi, color="k", label="traffic lanes")
         dp.plot(axi, color="red")
-        axi.set_title(f"Path {dp.id}: {dp.length:.2f}m")
+
+        axi.set_title(f"Path {dp.id}" + (f": {dp.length:.2f}m" if print_length else ""))
     # plt.tight_layout()
 
     for i in range(nrows*ncols):

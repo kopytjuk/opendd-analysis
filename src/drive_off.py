@@ -118,8 +118,8 @@ def find_drive_offs(traj1: Trajectory, traj2: Trajectory) -> List[DriveOffSituat
         o2_position_lon = o2_state["S"]
         o2_velocity = o2_state["V"]
         
-        # consder the vehicle length
-        distance = (o1_position_lon - o1_length) - (o2_position_lon + o2_length)
+        # consder the vehicle lengths
+        distance = (o1_position_lon - o1_length/2) - (o2_position_lon + o2_length/2)
         
         if o2_driving_state == VehicleState.STANDING:
             try:
@@ -225,37 +225,41 @@ def extract_moving_off_situations(roundabout_samples: pd.DataFrame, trafficlanes
     return df_situations
 
 
-def _extract_moving_off_situations_single_measurement(df_measurement: pd.DataFrame, paths: List[DrivablePath], 
-    measurement_name: str, logger = None):
+def _extract_moving_off_situations_single_measurement(df_measurement: pd.DataFrame, paths: List[DrivablePath],
+                                                      measurement_name: str, logger=None):
 
     if len(df_measurement) < 1:
         return pd.DataFrame()
-    
+
     gdf_traces = transform_df_to_trajectory_gdf(df_measurement)
 
-        # keep only motorized vehicles
+    # keep only motorized vehicles
     gdf_traces = gdf_traces[gdf_traces["CLASS"].isin(VEHICLE_CLASSES)]
 
-        # identify driving state
-    gdf_traces["STATE"] = gdf_traces.apply(lambda row: identify_driving_state(row), axis=1)
-        
+    # identify driving state
+    gdf_traces["STATE"] = gdf_traces.apply(
+        lambda row: identify_driving_state(row), axis=1)
+
     if logger:
-        logger.info(f"{measurement_name}: assigning {len(gdf_traces):d} trajectories to path")
+        logger.info(
+            f"{measurement_name}: assigning {len(gdf_traces):d} trajectories to path")
 
         # assign to reference path
-    gdf_traces["path_id"] = gdf_traces.apply(lambda row: find_nearest_path(row["geometry"], paths, N=25), axis=1)
+    gdf_traces["path_id"] = gdf_traces.apply(
+        lambda row: find_nearest_path(row["geometry"], paths, N=25), axis=1)
 
-        # create discrete reference paths
-    reference_paths = [DiscreteReferencePath.from_linestring(dp.as_linestring(), resolution=0.05) \
-                           for dp in paths]
+    # create discrete reference paths
+    reference_paths = [DiscreteReferencePath.from_linestring(dp.as_linestring(), resolution=0.05)
+                       for dp in paths]
 
-        # transform to frenet (frenet_path is a linestring, x=tangential, y=normal)
-    gdf_traces["frenet_path"] = gpd.GeoSeries(gdf_traces.apply(lambda row: _trace_to_frenet(row, reference_paths), axis=1))
+    # transform to frenet (frenet_path is a linestring, x=tangential, y=normal)
+    gdf_traces["frenet_path"] = gpd.GeoSeries(gdf_traces.apply(
+        lambda row: _trace_to_frenet(row, reference_paths), axis=1))
 
-        # extract the first frenet coordinate
+    # extract the first frenet coordinate
     gdf_traces["S"] = gdf_traces["frenet_path"].apply(lambda row: row.xy[0])
 
-        # for each path, find the drive-off situations
+    # for each path, find the drive-off situations
     if logger:
         logger.info(f"{measurement_name}: Retrieving drive-off situations.")
     
