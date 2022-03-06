@@ -1,4 +1,4 @@
-
+This repo is the foundation for my blog article: [LINK](https://kopytjuk.github.io/posts/open-dd-analysis/)
 
 # OpenDD dataset analysis
 
