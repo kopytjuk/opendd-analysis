@@ -24,24 +24,24 @@ logger = create_logger(__name__)
 
 @dataclass
 class DriveOffSituation:
-    """Analysis artifact representing a drive-off sitation
+    """Analysis artifact representing a moving-off situation
     """
     
-    # object IDs
-    o1_id: int
-    o2_id: int
+    # vehicle IDs
+    o1_id: int  # leading
+    o2_id: int  # following
     
-    t: float
+    t: float  # time of the event
     
-    # distance between the objects
-    distance: float
+    distance: float  # distance between the objects
     
+    # O2 properties
     o2_state: VehicleState
     o2_timedelta_drive_off: Optional[float] 
     o2_velocity: float
 
 
-def identify_driveoff_times(states: pd.Series) -> List[float]:
+def identify_move_off_times(states: pd.Series) -> List[float]:
     """Identify points in time where a vehicle drives off.
 
     Args:
@@ -93,8 +93,8 @@ def find_drive_offs(traj1: Trajectory, traj2: Trajectory) -> List[DriveOffSituat
     # get velocity
     o2_velocities = traj2.get("V")
     
-    o1_drive_off_times = identify_driveoff_times(o1_veh_states)
-    o2_drive_off_times = identify_driveoff_times(o2_veh_states)
+    o1_drive_off_times = identify_move_off_times(o1_veh_states)
+    o2_drive_off_times = identify_move_off_times(o2_veh_states)
     
     if len(o1_drive_off_times) < 1:
         # return empty list
@@ -109,6 +109,11 @@ def find_drive_offs(traj1: Trajectory, traj2: Trajectory) -> List[DriveOffSituat
         
         o1_state = traj1.sample(t_drive_off)
         o1_position_lon = o1_state["S"]
+
+        # check if timestep is in following vehicle's time range
+        o2_time_range = traj2.time_range
+        if (t_drive_off < o2_time_range[0]) or (t_drive_off > o2_time_range[1]):
+            continue
         
         # sample state of the second
         o2_state = traj2.sample(t_drive_off)
@@ -152,7 +157,8 @@ def analyze_driveoffs_from_path(path_trajectories: gpd.GeoDataFrame) -> pd.DataF
     # identify the starting (long.) location of each trajectory for sorting
     # would fail in the first second, if not done
     path_trajectories["START_LON"] = path_trajectories["frenet_path"].apply(lambda ls: ls.xy[0][0])
-    
+
+    # the order of trajectories in the list is important, to have the leading vehicle first!
     path_trajectories = path_trajectories.sort_values(["START_TIME", "START_LON"], ascending=[True, False])
     
     situations = list()

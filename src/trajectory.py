@@ -44,6 +44,11 @@ class Trajectory:
     @property
     def time(self):
         return self.X.index
+
+    @property
+    def time_range(self) -> Tuple[float, float]:
+        t = self.X.index
+        return t[0], t[-1]
     
     @property
     def names(self) -> List[str]:
